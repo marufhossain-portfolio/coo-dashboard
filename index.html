@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ALEL COO Dashboard — Machine Idle Hours</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <div class="mark">ALEL</div>
+      <div class="titles">
+        <h1>COO Dashboard — Machine Idle Hours</h1>
+        <p>Daily idle hours with reasons · live from the Production Dashboard sheet · ALEL</p>
+      </div>
+    </div>
+    <div class="controls">
+      <label for="dateSel">Report date</label>
+      <select id="dateSel"></select>
+      <label for="catSel">Show</label>
+      <select id="catSel">
+        <option value="all">All lines</option>
+        <option value="idle">🟥 IDLE — line not running</option>
+        <option value="below">🟨 Running below target</option>
+        <option value="ontarget">🟩 On / above target</option>
+      </select>
+      <button id="copyBtn" class="btn primary">⧉ Copy report</button>
+      <button id="dlBtn" class="btn">⤓ Download .txt</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="defs">
+      <div class="def idle">
+        <span class="tag">IDLE</span>
+        <b>Line NOT running</b>
+        <span>A working hour with <b>no production entry at all</b> — the machine/line stood still.</span>
+      </div>
+      <div class="def below">
+        <span class="tag">BELOW TARGET</span>
+        <b>Running, under target</b>
+        <span>The line <b>was running</b> but output was below target (Achievement&nbsp;%&nbsp;&lt;&nbsp;100).</span>
+      </div>
+      <div class="def okd">
+        <span class="tag">ON TARGET</span>
+        <b>Running, at/above target</b>
+        <span>The line was running and met or beat the target for that hour.</span>
+      </div>
+    </section>
+
+    <section class="kpis">
+      <div class="kpi"><span class="k">Report date</span><span class="v" id="kDate">—</span></div>
+      <div class="kpi"><span class="k">Lines reviewed</span><span class="v" id="kLines">—</span></div>
+      <div class="kpi badge-idle"><span class="k">Idle — line not running</span><span class="v" id="kIdle">—</span><span class="s" id="kIdlePct"></span></div>
+      <div class="kpi badge-below"><span class="k">Running below target</span><span class="v" id="kBelow">—</span><span class="s" id="kBelowPct"></span></div>
+      <div class="kpi badge-ok"><span class="k">On / above target</span><span class="v" id="kOntarget">—</span></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Line-wise breakdown · <span id="rowCount">–</span> lines <span id="catNote" class="filtertag"></span></h2>
+        <span class="muted" id="status">…</span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="w-idx">#</th>
+              <th>Line</th>
+              <th class="w-num">Hours run</th>
+              <th class="w-num">Idle hrs<br><span class="th-sub">not running</span></th>
+              <th class="w-num">Below-target hrs</th>
+              <th class="w-num">On-target hrs</th>
+              <th class="w-num">Output (pcs)</th>
+              <th>Reason (from Remarks)</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="legend">
+        <span><i class="dot bad"></i> High impact</span>
+        <span><i class="dot warn"></i> Some impact</span>
+        <span><i class="dot ok"></i> Fully on target</span>
+        <span class="muted">Working hours per line = 11 (08 AM – 07 PM). Each hour is counted once.</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>How to read this</h2></div>
+      <ul class="notes">
+        <li><b>Source:</b> Google Sheet <i>Production Dashboard → Production_Data</i>, fetched live — no manual update needed.</li>
+        <li><b>Idle hrs (not running)</b> — hours in the shift where the line has <b>no production entry</b>. These are the “machine stood idle” hours.</li>
+        <li><b>Below-target hrs</b> — hours where the line <b>did produce</b> but stayed <b>under target</b> (Achievement&nbsp;%&nbsp;&lt;&nbsp;100). This is under-performance, not idle time.</li>
+        <li><b>On-target hrs</b> — hours produced at or above target.</li>
+        <li><b>Reason</b> — the Remarks written against the below-target hours.</li>
+        <li>An hour appears in only one column. A day with no entries (e.g. a holiday) shows no rows for that date.</li>
+      </ul>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <footer class="foot">ALEL · OPEX · COO Dashboard — prepared for daily reporting</footer>
+  <script src="app.js"></script>
+</body>
+</html>
