@@ -4,6 +4,7 @@
 //   IDLE        = a working hour with NO production entry at all  (line not running)
 //   BELOW TARGET= a running hour whose Achievement % < 100        (under-performance)
 //   ON TARGET   = a running hour at/above target
+// Target output per hour = Target Productivity x Manpower (summed over the day).
 // No build step, no dependencies.
 
 const SHEET_ID = "1HeKJ0XueH0WeAxLrJpNaNz_pvPuxRDElQmHcPd7QfOQ";
@@ -46,6 +47,8 @@ function fmtDate(d) {
   const mn = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return d.getDate() + "-" + mn[d.getMonth()] + "-" + d.getFullYear();
 }
+const fmt = (n) => (n == null ? "—" : Math.round(n).toLocaleString("en-US"));
+const H = (n) => n + " hr" + (n === 1 ? "" : "s");
 
 async function load() {
   setStatus("Loading live data from the Google Sheet…");
@@ -61,7 +64,9 @@ async function load() {
       date,
       line: cellVal(c[3]).trim(),
       time: cellVal(c[4]).trim(),
+      manpower: num(cellVal(c[5])),
       prod: num(cellVal(c[6])) || 0,
+      targetPerf: num(cellVal(c[8])),
       ach: num(cellVal(c[9])),
       remarks: cellVal(c[13]).trim(),
     });
@@ -88,13 +93,19 @@ function compute(date) {
     const below = rs.filter(x => x.ach != null && x.ach < 100);
     const belowSlots = [...new Set(below.map(x => x.time))];
     const reasons = [...new Set(below.map(x => x.remarks).filter(Boolean))];
+    // target output for the day = sum(Target Productivity x Manpower)
+    let targetOutput = 0, targetKnown = false;
+    for (const x of rs) { if (x.manpower != null && x.targetPerf != null) { targetOutput += x.manpower * x.targetPerf; targetKnown = true; } }
+    const actualOutput = rs.reduce((s, x) => s + (x.prod || 0), 0);
     return {
       line: L,
       hoursRun: slots.length,
       notRunning: Math.max(0, WORKING_SLOTS - slots.length),   // IDLE
       below: belowSlots.length,                                // BELOW TARGET
       onTarget: Math.max(0, slots.length - belowSlots.length), // ON TARGET
-      prod: rs.reduce((s, x) => s + (x.prod || 0), 0),
+      targetOutput: targetKnown ? Math.round(targetOutput) : null,
+      actualOutput: Math.round(actualOutput),
+      achievement: targetKnown && targetOutput ? Math.round(actualOutput / targetOutput * 1000) / 10 : null,
       reasons,
     };
   }).sort((a, b) => (b.notRunning + b.below) - (a.notRunning + a.below));
@@ -104,13 +115,14 @@ function compute(date) {
   const idleHours = res.reduce((s, x) => s + x.notRunning, 0);
   const belowHours = res.reduce((s, x) => s + x.below, 0);
   const onTargetHours = res.reduce((s, x) => s + x.onTarget, 0);
+  const totalTarget = res.reduce((s, x) => s + (x.targetOutput || 0), 0);
+  const totalActual = res.reduce((s, x) => s + (x.actualOutput || 0), 0);
   return {
     date, lines: res, possible, runHours, idleHours, belowHours, onTargetHours,
+    totalTarget, totalActual,
+    overallAch: totalTarget ? Math.round(totalActual / totalTarget * 1000) / 10 : null,
     idlePctOfPossible: possible ? Math.round(idleHours / possible * 100) : 0,
     belowPctOfRun: runHours ? Math.round(belowHours / runHours * 100) : 0,
-    linesWithIdle: res.filter(r => r.notRunning > 0).length,
-    linesWithBelow: res.filter(r => r.below > 0).length,
-    linesOnTarget: res.filter(r => r.onTarget > 0).length,
   };
 }
 
@@ -137,15 +149,16 @@ function render() {
   $("#kBelow").textContent = d.belowHours + " hrs";
   $("#kBelowPct").textContent = d.belowPctOfRun + "% of running hours";
   $("#kOntarget").textContent = d.onTargetHours + " hrs";
+  $("#kTarget").textContent = fmt(d.totalTarget) + " pcs";
+  $("#kActual").textContent = fmt(d.totalActual) + " pcs";
+  $("#kAch").textContent = (d.overallAch == null ? "—" : d.overallAch + "%");
 
   const rows = applyFilter(d.lines);
   window.__filtered = rows;
 
   const tb = $("#tbody");
   tb.innerHTML = "";
-  if (!rows.length) {
-    tb.innerHTML = "<tr><td colspan='8' class='empty'>No lines in this category for " + esc(d.date) + ".</td></tr>";
-  }
+  if (!rows.length) tb.innerHTML = "<tr><td colspan='10' class='empty'>No lines in this category for " + esc(d.date) + ".</td></tr>";
   rows.forEach((r, i) => {
     const tr = document.createElement("tr");
     const worst = r.notRunning + r.below;
@@ -153,6 +166,7 @@ function render() {
     else if (r.notRunning >= 4 || r.below >= 8) tr.className = "bad";
     else tr.className = "warn";
     const hi = (col) => (CAT === col ? " hit" : "");
+    const achCls = r.achievement == null ? "" : (r.achievement >= 100 ? " achok" : (r.achievement < 80 ? " achbad" : " achwarn"));
     tr.innerHTML =
       "<td>" + (i + 1) + "</td>" +
       "<td class='ln'>" + esc(r.line) + "</td>" +
@@ -160,7 +174,9 @@ function render() {
       "<td class='n strong idlecol" + hi("idle") + "'>" + (r.notRunning || "0") + "</td>" +
       "<td class='n strong" + hi("below") + "'>" + (r.below || "0") + "</td>" +
       "<td class='n okcol" + hi("ontarget") + "'>" + (r.onTarget || "0") + "</td>" +
-      "<td class='n'>" + r.prod.toLocaleString("en-US") + "</td>" +
+      "<td class='n tar'>" + fmt(r.targetOutput) + "</td>" +
+      "<td class='n'>" + fmt(r.actualOutput) + "</td>" +
+      "<td class='n strong" + achCls + "'>" + (r.achievement == null ? "—" : r.achievement + "%") + "</td>" +
       "<td class='rs'>" + (r.reasons.length ? esc(r.reasons.join(" | ")) : "<span class='muted'>— (no remark)</span>") + "</td>";
     tb.appendChild(tr);
   });
@@ -174,14 +190,14 @@ function buildText() {
   if (!d) return "";
   const rows = window.__filtered || d.lines;
   const L = [];
-  L.push("MACHINE IDLE / UNDER-PERFORMANCE REPORT — " + d.date);
+  L.push("MACHINE IDLE HOURS REPORT — " + d.date);
   if (CAT !== "all") L.push("Filter: " + catLabel());
   L.push("");
   L.push("WHAT THE NUMBERS MEAN");
   L.push("  IDLE (line not running) = a working hour with NO production at all.");
   L.push("  BELOW TARGET            = the line WAS running but output was under target (Achievement < 100%).");
   L.push("  ON / ABOVE TARGET       = the line ran and met or beat target.");
-  L.push("  These are different hours — an hour is counted in only one of them.");
+  L.push("  Target output = Target Productivity x Manpower, summed for the day.");
   L.push("");
   L.push("SUMMARY");
   L.push("  Lines reviewed                 : " + d.lines.length);
@@ -191,13 +207,17 @@ function buildText() {
   L.push("  -- IDLE (line not running)     : " + d.idleHours + " hrs  (" + d.idlePctOfPossible + "% of possible hours)");
   L.push("  -- RUNNING BELOW TARGET        : " + d.belowHours + " hrs  (" + d.belowPctOfRun + "% of running hours)");
   L.push("  -- ON / ABOVE TARGET           : " + d.onTargetHours + " hrs");
+  L.push("  Target output (all lines)      : " + fmt(d.totalTarget) + " pcs");
+  L.push("  Actual output (all lines)      : " + fmt(d.totalActual) + " pcs");
+  L.push("  Overall achievement            : " + (d.overallAch == null ? "—" : d.overallAch + "%"));
   L.push("");
   L.push("DETAILS" + (CAT !== "all" ? " (" + catLabel() + ")" : " (highest impact first)"));
   if (!rows.length) L.push("  (no lines in this category)");
   rows.forEach((r, i) => {
     const rs = r.reasons.length ? r.reasons.join(" | ") : "no remark recorded";
     L.push("  " + (i + 1) + ". " + r.line);
-    L.push("       Idle (not running): " + r.notRunning + " hrs   |   Below target: " + r.below + " hrs   |   On target: " + r.onTarget + " hrs   |   Output: " + r.prod.toLocaleString("en-US") + " pcs");
+    L.push("       Idle (not running): " + H(r.notRunning) + "   |   Below target: " + H(r.below) + "   |   On target: " + H(r.onTarget));
+    L.push("       Target output: " + fmt(r.targetOutput) + " pcs   |   Actual Output: " + fmt(r.actualOutput) + " pcs   |   Achievement: " + (r.achievement == null ? "—" : r.achievement + "%"));
     L.push("       Reason: " + rs);
   });
   return L.join("\n");

@@ -114,6 +114,13 @@ td.rs{color:#3c4a5a;font-size:12.5px;max-width:520px}
 .kpi.badge-idle{border-left-color:var(--bad)}
 .kpi.badge-below{border-left-color:var(--warn)}
 .kpi.badge-ok{border-left-color:var(--ok)}
+.kpi.badge-target{border-left-color:#5b6b8c}
+.kpi.badge-actual{border-left-color:var(--ink)}
+.kpi.badge-ach{border-left-color:var(--gold)}
+td.tar{color:#5b6b8c}
+td.achok{color:var(--ok)}
+td.achwarn{color:var(--warn)}
+td.achbad{color:var(--bad)}
 .th-sub{font-weight:600;text-transform:none;letter-spacing:0;color:#9aa4b2;font-size:9.5px}
 td.idlecol{color:var(--bad)}
 td.okcol{color:var(--ok)}
